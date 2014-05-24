@@ -1,0 +1,151 @@
+Severe Weather in the United States: Threats to Life & Property
+========================================================
+*Synopsis here - up to 10 sentences.
+
+Data Processing
+--------------------------------------------------------
+```{r Setup}
+require(stringr)
+require(data.table)
+require(reshape2)
+require(ggplot2)
+```
+
+For the purposes of our analysis, we use the xyz data obtained from abc.
+
+We begin by reading the data in from file, making the assumption that the .bz2 archive containing the data is located in the R working directory.
+```{r Ingest, cache=TRUE}
+srcData <- read.csv(bzfile(file.path(getwd(),"repdata-data-StormData.csv.bz2")), stringsAsFactors = FALSE)
+```
+
+We note that there are inconsistencies and incongruous values present in the ```EVTYPE``` variable, as there are ```length(unique(srcData$EVTYPE))``` unique values recorded, compared to the 48 unique values listed in the NOAA data.
+
+In order to improve the quality of any results, we therefore conduct some cleaning of the data, beginning by imposing a consistent character-set and case.
+```{r cleaning-charset-case}
+srcData$EVTYPE <- tolower(srcData$EVTYPE)
+srcData$EVTYPE <- str_replace_all(srcData$EVTYPE, "[^[:alnum:/]]", " ")
+```
+
+Following this standardization, we group the data into the categories listed by NOAA (given below).
+```{r cleaning-categories}
+noaaEVTYPE <- c("Astronomical Low Tide", "Avalanche", "Blizzard", "Coastal Flood", 
+    "Cold/Wind Chill", "Debris Flow", "Dense Fog", "Dense Smoke", "Drought", 
+    "Dust Devil", "Dust Storm", "Excessive Heat", "Extreme Cold/Wind Chill", 
+    "Flash Flood", "Flood", "Frost/Freeze", "Funnel Cloud", "Freezing Fog", 
+    "Hail", "Heat", "Heavy Rain", "Heavy Snow", "High Surf", "High Wind", "Hurricane (Typhoon)", "Ice Storm", "Lake-Effect Snow", "Lakeshore Flood", "Lightning", "Marine Hail", 
+    "Marine High Wind", "Marine Strong Wind", "Marine Thunderstorm Wind", "Rip Current", 
+    "Seiche", "Sleet", "Storm Surge/Tide", "Strong Wind", "Thunderstorm Wind", 
+    "Tornado", "Tropical Depression", "Tropical Storm", "Tsunami", "Volcanic Ash", 
+    "Waterspout", "Wildfire", "Winter Storm", "Winter Weather")
+```
+
+We begin by subsetting the data based on whether any threat to safety or property was present.
+
+As there are typographic errors present in the data, we employ regular expressions in order to robustly match the entries in the ```EVTYPE``` variable to the corresponding categories.
+```{r cleaning-regex-grouping}
+cleanData <- data.table(subset(srcData, FATALITIES > 0 | INJURIES > 0 | PROPDMG > 0 | CROPDMG > 0, select = c(EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)))
+
+cleanData$EVTYPE <- str_trim(cleanData$EVTYPE)
+
+cleanData$EVTYPE[grepl("*astronomical low tide*", cleanData$EVTYPE)] <- "Astronomical Low Tide"
+cleanData$EVTYPE[grepl("*avalanc(h)?e*", cleanData$EVTYPE)] <- "Avalanche"
+cleanData$EVTYPE[grepl("*blizzard*", cleanData$EVTYPE)] <- "Blizzard"
+cleanData$EVTYPE[grepl("*coastal flood*", cleanData$EVTYPE)] <- "Coastal Flood"
+cleanData$EVTYPE[grepl("*cold/wind chill*", cleanData$EVTYPE)] <- "Cold/Wind Chill"
+cleanData$EVTYPE[grepl("*debris flow*", cleanData$EVTYPE)] <- "Debris Flow"
+cleanData$EVTYPE[grepl("*dense fog*", cleanData$EVTYPE)] <- "Dense Fog"
+cleanData$EVTYPE[grepl("*dense smoke*", cleanData$EVTYPE)] <- "Dense Smoke"
+cleanData$EVTYPE[grepl("*drought*", cleanData$EVTYPE)] <- "Drought"
+cleanData$EVTYPE[grepl("*dust devil*", cleanData$EVTYPE)] <- "Dust Devil"
+cleanData$EVTYPE[grepl("*dust storm*", cleanData$EVTYPE)] <- "Dust Storm"
+cleanData$EVTYPE[grepl("*excessive heat*|*extreme heat*", cleanData$EVTYPE)] <- "Excessive Heat"
+cleanData$EVTYPE[grepl("*extreme cold/wind chill*", cleanData$EVTYPE)] <- "Extreme Cold/Wind Chill"
+cleanData$EVTYPE[grepl("*flash flood*|*flash/flood*|*flood/flash*|*flashflood*|*flood flash*", cleanData$EVTYPE)] <- "Flash Flood"
+cleanData$EVTYPE[grepl("*flood*", cleanData$EVTYPE)] <- "Flood"
+cleanData$EVTYPE[grepl("*frost*|*frost/freeze*|*freeze*", cleanData$EVTYPE)] <- "Frost/Freeze"
+cleanData$EVTYPE[grepl("*funnel cloud*", cleanData$EVTYPE)] <- "Funnel Cloud"
+cleanData$EVTYPE[grepl("*freezing fog*", cleanData$EVTYPE)] <- "Freezing Fog"
+cleanData$EVTYPE[grepl("*marine hail*", cleanData$EVTYPE)] <- "Marine Hail"
+cleanData$EVTYPE[grepl("*hail*", cleanData$EVTYPE)] <- "Hail"
+cleanData$EVTYPE[grepl("*heat*", cleanData$EVTYPE)] <- "Heat"
+
+# "Heavy Rain", "Heavy Snow", "High Surf"
+
+cleanData$EVTYPE[grepl("*marine high wind*", cleanData$EVTYPE)] <- "Marine High Wind"
+cleanData$EVTYPE[grepl("*high wind*", cleanData$EVTYPE)] <- "High Wind"
+cleanData$EVTYPE[grepl("*hurricane*", cleanData$EVTYPE)] <- "Hurricane (Typhoon)"
+
+# "Ice Storm", "Lake-Effect Snow", "Lakeshore Flood", "Lightning"
+
+cleanData$EVTYPE[grepl("*marine strong wind*", cleanData$EVTYPE)] <- "Marine Strong Wind"
+cleanData$EVTYPE[grepl("*marine thunderstorm wind*", cleanData$EVTYPE)] <- "Marine Thunderstorm Wind"
+cleanData$EVTYPE[grepl("*rip current*", cleanData$EVTYPE)] <- "Rip Current"
+cleanData$EVTYPE[grepl("*seiche*", cleanData$EVTYPE)] <- "Seiche"
+cleanData$EVTYPE[grepl("*sleet*", cleanData$EVTYPE)] <- "Sleet"
+cleanData$EVTYPE[grepl("*storm surge/tide*", cleanData$EVTYPE)] <- "Storm Surge/Tide"
+
+
+
+
+cleanData$EVTYPE[grepl("*thunde(e)?r(e)?storm*|*tstm*|*thunderstrom*", cleanData$EVTYPE)] <- "Thunderstorm Wind"
+cleanData$EVTYPE[grepl("*torn(a)?do*", cleanData$EVTYPE)] <- "Tornado"
+
+types <- unique(cleanData$EVTYPE)
+types[order(types)]
+```
+
+We note that several classes of entry in the ```EVTYPE`` variable do not map readily to any of the NOAA categories, and as such we discard these.
+```{r cleaning-ignored}
+
+```
+
+We begin the analysis proper of the cleaned data by attempting to answer the question "Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?"
+```{r riskLife}
+# Getting the total number of fatalities & injuries for each event-type.
+Fatalities <- cleanData[, sum(FATALITIES), by = EVTYPE]
+Injuries <- cleanData[, sum(INJURIES), by = EVTYPE]
+
+x <- data.table(types, Fatalities$V1, Injuries$V1)
+setnames(x, old=c("types", "V2", "V3"), new=c("EVTYPE", "Fatalities", "Injuries"))
+x <- x[with(x, order(-Fatalities, -Injuries)),]
+
+rankedLife <- head(x, 25)
+moltenLife <- melt(rankedLife, id.vars="EVTYPE")
+```
+
+
+We now consider the question "Across the United States, which types of events have the greatest economic consequences?"
+```{r riskProp}
+# Sorting out the exponentials.
+multipliers <- c(1, 1e+03, 1e+06, 1e+09)
+chars <- c("H", "K", "M", "B")
+cleanData$PROPDMGEXP <- factor(toupper(cleanData$PROPDMGEXP)) #, levels <- multipliers, names <- chars)
+
+# Calculating the monetary damage.
+data$PROPDMG_CALC <- data$PROPDMG * multipliers[PROPDMGEXP]
+data$CROPDMG_CALC <- data$CROPDMG * multipliers[CROPDMGEXP]
+
+# Getting the 25 most damaging event types.
+resultsProp <- DT[, sum(PROPDMG_CALC + CROPDMG_CALC), by = EVTYPE]
+resultsProp <- resultsProp[order(V1, na.last = TRUE, decreasing = TRUE), ]
+rankedProp <- head(resultsProp, 25)
+```
+
+Results
+--------------------------------------------------------
+We plot below the number of fatalities/injuries which are attributable to the 25 most harmful types of severe weather. The data are ordered based on the total number of fatalities and injuries attributed to a given type of weather, with ties broken by the number of fatalities.
+```{r plotLife}
+life <- ggplot(moltenLife, aes(x=reorder(EVTYPE, value), y=value, group=EVTYPE, fill=variable)) 
+life <- life + geom_bar(stat = "identity") + coord_flip()
+life <- life + ggtitle("Severe Weather Posing The Greatest Risk To Safety") + 
+    ylab("Number of Fatalities/Injuries") + xlab("Type of Severe Weather")
+print(life)
+```
+
+```{r plotProp}
+prop <- ggplot(rankedProp, aes(x = reorder(EVTYPE, value), y = value)) + geom_bar(stat = "identity")
+prop <- prop + coord_flip()
+prop(prop)
+```
+
+We conclude that the greatest threats to public safety are Tornados, and that the most economically damaging events are Hurricanes (Typhoons).
