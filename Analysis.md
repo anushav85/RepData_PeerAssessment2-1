@@ -1,6 +1,9 @@
 Severe Weather in the United States: Threats to Life & Property
 ========================================================
-*Synopsis here - up to 10 sentences.
+The goal of this analysis is to determine the 10 forms of severe weather which pose greatest risk to life & property, in order to support decision making on mitigation.
+The analysis is based on the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database.
+We conclude that Tornadoes are by far the greatest threat to public safety, as in the US they cause vastly more deaths and injuries than all other forms of severe weather.
+Furthermore, we conclude that Hurricanes (Typhoons) are the most economically costly form of severe weather as, like tornadoes, they far outstrip other types of severe weather in the damage they incurr.
 
 Data Processing
 --------------------------------------------------------
@@ -38,7 +41,7 @@ require(ggplot2)
 ```
 
 
-For the purposes of our analysis, we use the xyz data obtained from abc.
+For the purposes of our analysis, we use the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database.
 
 We begin by reading the data in from file, making the assumption that the .bz2 archive containing the data is located in the R working directory.
 
@@ -48,7 +51,7 @@ srcData <- read.csv(bzfile(file.path(getwd(), "repdata-data-StormData.csv.bz2"))
 ```
 
 
-We note that there are inconsistencies and incongruous values present in the ```EVTYPE``` variable, as there are ```length(unique(srcData$EVTYPE))``` unique values recorded, compared to the 48 unique values listed in the NOAA data.
+We note that there are inconsistencies and incongruous values present in the ```EVTYPE``` variable, as there are `length(unique(srcData$EVTYPE))` unique values recorded, compared to the 48 unique values listed in the NOAA data.
 
 In order to improve the quality of any results, we therefore conduct some cleaning of the data, beginning by imposing a consistent character-set and case.
 
@@ -74,9 +77,7 @@ noaaEVTYPE <- c("Astronomical Low Tide", "Avalanche", "Blizzard", "Coastal Flood
 ```
 
 
-We begin by subsetting the data based on whether any threat to safety or property was present.
-
-As there are typographic errors present in the data, we employ regular expressions in order to robustly match the entries in the ```EVTYPE``` variable to the corresponding categories.
+We begin by subsetting the data based on whether any threat to safety or property was present, as for the purposes of our analysis, events which did not result in danger to the public, or economic damage, are irrelevant.
 
 ```r
 cleanData <- data.table(subset(srcData, FATALITIES > 0 | INJURIES > 0 | PROPDMG > 
@@ -84,14 +85,20 @@ cleanData <- data.table(subset(srcData, FATALITIES > 0 | INJURIES > 0 | PROPDMG 
     CROPDMG, CROPDMGEXP)))
 
 cleanData$EVTYPE <- str_trim(cleanData$EVTYPE)
+```
 
+
+As there are typographic errors present in the data, we employ regular expressions in order to robustly match the entries in the EVTYPE variable to the corresponding categories. We attempt to correct for spelling errors, and equivalent terminology, but do not attempt to map ambiguous categories to one of the NOAA event types.
+
+```r
 cleanData$EVTYPE[grepl("*astronomical low tide*", cleanData$EVTYPE)] <- "Astronomical Low Tide"
 cleanData$EVTYPE[grepl("*avalanc(h)?e*", cleanData$EVTYPE)] <- "Avalanche"
 cleanData$EVTYPE[grepl("*blizzard*", cleanData$EVTYPE)] <- "Blizzard"
 cleanData$EVTYPE[grepl("*coastal flood*", cleanData$EVTYPE)] <- "Coastal Flood"
 cleanData$EVTYPE[grepl("*cold/wind chill*", cleanData$EVTYPE)] <- "Cold/Wind Chill"
-cleanData$EVTYPE[grepl("*debris flow*", cleanData$EVTYPE)] <- "Debris Flow"
-cleanData$EVTYPE[grepl("*dense fog*", cleanData$EVTYPE)] <- "Dense Fog"
+cleanData$EVTYPE[grepl("*debris flow*|mud( )?slide*|*landslide*|*rock slide*", 
+    cleanData$EVTYPE)] <- "Debris Flow"
+cleanData$EVTYPE[grepl("*(dense )?fog*", cleanData$EVTYPE)] <- "Dense Fog"
 cleanData$EVTYPE[grepl("*dense smoke*", cleanData$EVTYPE)] <- "Dense Smoke"
 cleanData$EVTYPE[grepl("*drought*", cleanData$EVTYPE)] <- "Drought"
 cleanData$EVTYPE[grepl("*dust devil*", cleanData$EVTYPE)] <- "Dust Devil"
@@ -100,6 +107,7 @@ cleanData$EVTYPE[grepl("*excessive heat*|*extreme heat*", cleanData$EVTYPE)] <- 
 cleanData$EVTYPE[grepl("*extreme cold/wind chill*", cleanData$EVTYPE)] <- "Extreme Cold/Wind Chill"
 cleanData$EVTYPE[grepl("*flash flood*|*flash/flood*|*flood/flash*|*flashflood*|*flood flash*", 
     cleanData$EVTYPE)] <- "Flash Flood"
+cleanData$EVTYPE[grepl("*lakeshore flood*", cleanData$EVTYPE)] <- "Lakeshore Flood"
 cleanData$EVTYPE[grepl("*flood*", cleanData$EVTYPE)] <- "Flood"
 cleanData$EVTYPE[grepl("*frost*|*frost/freeze*|*freeze*", cleanData$EVTYPE)] <- "Frost/Freeze"
 cleanData$EVTYPE[grepl("*funnel cloud*", cleanData$EVTYPE)] <- "Funnel Cloud"
@@ -107,142 +115,43 @@ cleanData$EVTYPE[grepl("*freezing fog*", cleanData$EVTYPE)] <- "Freezing Fog"
 cleanData$EVTYPE[grepl("*marine hail*", cleanData$EVTYPE)] <- "Marine Hail"
 cleanData$EVTYPE[grepl("*hail*", cleanData$EVTYPE)] <- "Hail"
 cleanData$EVTYPE[grepl("*heat*", cleanData$EVTYPE)] <- "Heat"
-
-# 'Heavy Rain', 'Heavy Snow', 'High Surf'
-
+cleanData$EVTYPE[grepl("*heavy rain*", cleanData$EVTYPE)] <- "Heavy Rain"
+cleanData$EVTYPE[grepl("*heavy snow*", cleanData$EVTYPE)] <- "Heavy Snow"
+cleanData$EVTYPE[grepl("*high surf*|*high seas*|*high waves*|*high swells*|*rough seas*|*rough surf*", 
+    cleanData$EVTYPE)] <- "High Surf"
 cleanData$EVTYPE[grepl("*marine high wind*", cleanData$EVTYPE)] <- "Marine High Wind"
 cleanData$EVTYPE[grepl("*high wind*", cleanData$EVTYPE)] <- "High Wind"
-cleanData$EVTYPE[grepl("*hurricane*", cleanData$EVTYPE)] <- "Hurricane (Typhoon)"
-
-# 'Ice Storm', 'Lake-Effect Snow', 'Lakeshore Flood', 'Lightning'
-
+cleanData$EVTYPE[grepl("*hurricane*|*typhoon*", cleanData$EVTYPE)] <- "Hurricane (Typhoon)"
+cleanData$EVTYPE[grepl("*ice storm*", cleanData$EVTYPE)] <- "Ice Storm"
+cleanData$EVTYPE[grepl("*lake effect snow*", cleanData$EVTYPE)] <- "Lake-Effect Snow"
+cleanData$EVTYPE[grepl("*lig(h)?t(n)?ing*", cleanData$EVTYPE)] <- "Lightning"
 cleanData$EVTYPE[grepl("*marine strong wind*", cleanData$EVTYPE)] <- "Marine Strong Wind"
 cleanData$EVTYPE[grepl("*marine thunderstorm wind*", cleanData$EVTYPE)] <- "Marine Thunderstorm Wind"
 cleanData$EVTYPE[grepl("*rip current*", cleanData$EVTYPE)] <- "Rip Current"
 cleanData$EVTYPE[grepl("*seiche*", cleanData$EVTYPE)] <- "Seiche"
 cleanData$EVTYPE[grepl("*sleet*", cleanData$EVTYPE)] <- "Sleet"
-cleanData$EVTYPE[grepl("*storm surge/tide*", cleanData$EVTYPE)] <- "Storm Surge/Tide"
-
-
-
-
-cleanData$EVTYPE[grepl("*thunde(e)?r(e)?storm*|*tstm*|*thunderstrom*", cleanData$EVTYPE)] <- "Thunderstorm Wind"
+cleanData$EVTYPE[grepl("*storm surge/tide*|*storm surge*", cleanData$EVTYPE)] <- "Storm Surge/Tide"
+cleanData$EVTYPE[grepl("*strong wind*", cleanData$EVTYPE)] <- "Strong Wind"
+cleanData$EVTYPE[grepl("*t(h)?u(n)?(d)?e(e)?r(e)?(s)?torm*|*tstm*|*thunderstrom*", 
+    cleanData$EVTYPE)] <- "Thunderstorm Wind"
 cleanData$EVTYPE[grepl("*torn(a)?do*", cleanData$EVTYPE)] <- "Tornado"
+cleanData$EVTYPE[grepl("*tropical depression*", cleanData$EVTYPE)] <- "Tropical Depression"
+cleanData$EVTYPE[grepl("*tropical storm*", cleanData$EVTYPE)] <- "Tropical Storm"
+cleanData$EVTYPE[grepl("*tsunami*", cleanData$EVTYPE)] <- "Tsunami"
+cleanData$EVTYPE[grepl("*volcanic ash*", cleanData$EVTYPE)] <- "Volcanic Ash"
+cleanData$EVTYPE[grepl("*waterspout*", cleanData$EVTYPE)] <- "Waterspout"
+cleanData$EVTYPE[grepl("*wild( )?fire*|*wild/forest fire*|*brush fire*|*forest fire*", 
+    cleanData$EVTYPE)] <- "Wildfire"
+cleanData$EVTYPE[grepl("*winter storm*", cleanData$EVTYPE)] <- "Winter Storm"
+cleanData$EVTYPE[grepl("*winter weather*", cleanData$EVTYPE)] <- "Winter Weather"
 
 types <- unique(cleanData$EVTYPE)
-types[order(types)]
 ```
-
-```
-##   [1] "?"                         "apache county"            
-##   [3] "astronomical high tide"    "Astronomical Low Tide"    
-##   [5] "Avalanche"                 "beach erosion"            
-##   [7] "black ice"                 "Blizzard"                 
-##   [9] "blowing dust"              "blowing snow"             
-##  [11] "brush fire"                "coastal erosion"          
-##  [13] "Coastal Flood"             "coastal storm"            
-##  [15] "coastal surge"             "coastalstorm"             
-##  [17] "cold"                      "cold and snow"            
-##  [19] "cold and wet conditions"   "cold temperature"         
-##  [21] "cold wave"                 "cold weather"             
-##  [23] "Cold/Wind Chill"           "cold/winds"               
-##  [25] "cool and wet"              "dam break"                
-##  [27] "Dense Fog"                 "Dense Smoke"              
-##  [29] "downburst"                 "Drought"                  
-##  [31] "drowning"                  "dry microburst"           
-##  [33] "dry mircoburst winds"      "Dust Devil"               
-##  [35] "Dust Storm"                "Excessive Heat"           
-##  [37] "excessive rainfall"        "excessive snow"           
-##  [39] "excessive wetness"         "extended cold"            
-##  [41] "extreme cold"              "extreme wind chill"       
-##  [43] "extreme windchill"         "falling snow/ice"         
-##  [45] "Flash Flood"               "Flood"                    
-##  [47] "fog"                       "fog and cold temperatures"
-##  [49] "forest fires"              "Frost/Freeze"             
-##  [51] "Funnel Cloud"              "glaze"                    
-##  [53] "glaze ice"                 "glaze/ice storm"          
-##  [55] "gradient wind"             "grass fires"              
-##  [57] "gustnado"                  "gusty wind"               
-##  [59] "gusty wind/hvy rain"       "gusty wind/rain"          
-##  [61] "gusty winds"               "Hail"                     
-##  [63] "hazardous surf"            "Heat"                     
-##  [65] "high"                      "high  winds"              
-##  [67] "high seas"                 "high surf"                
-##  [69] "high surf advisory"        "high swells"              
-##  [71] "high tides"                "high water"               
-##  [73] "high waves"                "High Wind"                
-##  [75] "Hurricane (Typhoon)"       "hvy rain"                 
-##  [77] "hyperthermia/exposure"     "hypothermia"              
-##  [79] "hypothermia/exposure"      "ice"                      
-##  [81] "ice and snow"              "ice floes"                
-##  [83] "ice jam"                   "ice on road"              
-##  [85] "ice roads"                 "ice storm"                
-##  [87] "ice/strong winds"          "icy roads"                
-##  [89] "lake effect snow"          "lake-effect snow"         
-##  [91] "landslide"                 "landslides"               
-##  [93] "landslump"                 "landspout"                
-##  [95] "late season snow"          "light snow"               
-##  [97] "light snowfall"            "lighting"                 
-##  [99] "lightning"                 "lightning  wauseon"       
-## [101] "lightning fire"            "lightning injury"         
-## [103] "lightning."                "ligntning"                
-## [105] "low temperature"           "marine accident"          
-## [107] "Marine Hail"               "Marine High Wind"         
-## [109] "marine mishap"             "Marine Strong Wind"       
-## [111] "Marine Thunderstorm Wind"  "microburst"               
-## [113] "microburst winds"          "mixed precip"             
-## [115] "mixed precipitation"       "mud slide"                
-## [117] "mud slides"                "mudslide"                 
-## [119] "mudslides"                 "non-severe wind damage"   
-## [121] "other"                     "rain"                     
-## [123] "rain/snow"                 "rain/wind"                
-## [125] "rainstorm"                 "rapidly rising water"     
-## [127] "record cold"               "record rainfall"          
-## [129] "record snow"               "Rip Current"              
-## [131] "rock slide"                "rogue wave"               
-## [133] "rough seas"                "rough surf"               
-## [135] "Seiche"                    "severe turbulence"        
-## [137] "Sleet"                     "snow"                     
-## [139] "snow accumulation"         "snow and ice"             
-## [141] "snow and ice storm"        "snow squall"              
-## [143] "snow squalls"              "snow/ bitter cold"        
-## [145] "snow/ ice"                 "snow/blowing snow"        
-## [147] "snow/cold"                 "snow/ice"                 
-## [149] "snow/ice storm"            "storm force winds"        
-## [151] "storm surge"               "Storm Surge/Tide"         
-## [153] "strong wind"               "strong winds"             
-## [155] "thuderstorm winds"         "thundersnow"              
-## [157] "Thunderstorm Wind"         "thundertorm winds"        
-## [159] "thunerstorm winds"         "Tornado"                  
-## [161] "torrential rainfall"       "tropical depression"      
-## [163] "tropical storm"            "tropical storm alberto"   
-## [165] "tropical storm dean"       "tropical storm gordon"    
-## [167] "tropical storm jerry"      "tsunami"                  
-## [169] "tunderstorm wind"          "typhoon"                  
-## [171] "unseasonable cold"         "unseasonably cold"        
-## [173] "unseasonably warm"         "unseasonably warm and dry"
-## [175] "unseasonal rain"           "urban and small"          
-## [177] "urban small"               "urban/small stream"       
-## [179] "urban/sml stream fld"      "volcanic ash"             
-## [181] "warm weather"              "waterspout"               
-## [183] "waterspout-"               "wet microburst"           
-## [185] "whirlwind"                 "wild fires"               
-## [187] "wild/forest fire"          "wild/forest fires"        
-## [189] "wildfire"                  "wildfires"                
-## [191] "wind"                      "wind and wave"            
-## [193] "wind damage"               "wind storm"               
-## [195] "winds"                     "winter storm"             
-## [197] "winter storms"             "winter weather"           
-## [199] "winter weather mix"        "winter weather/mix"       
-## [201] "wintry mix"
-```
-
-
-We note that several classes of entry in the ```EVTYPE`` variable do not map readily to any of the NOAA categories, and as such we discard these.
-
 
 
 We begin the analysis proper of the cleaned data by attempting to answer the question "Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?"
+
+We total the fatalities and injuries attributable to each type of weather, rank them by the total number of fatalities and injuries, and take the top 10.
 
 ```r
 # Getting the total number of fatalities & injuries for each event-type.
@@ -253,7 +162,7 @@ x <- data.table(types, Fatalities$V1, Injuries$V1)
 setnames(x, old = c("types", "V2", "V3"), new = c("EVTYPE", "Fatalities", "Injuries"))
 x <- x[with(x, order(-Fatalities, -Injuries)), ]
 
-rankedLife <- head(x, 25)
+rankedLife <- head(x, 10)
 moltenLife <- melt(rankedLife, id.vars = "EVTYPE")
 ```
 
@@ -261,58 +170,30 @@ moltenLife <- melt(rankedLife, id.vars = "EVTYPE")
 
 We now consider the question "Across the United States, which types of events have the greatest economic consequences?"
 
-```r
-# Sorting out the exponentials.
-multipliers <- c(1, 1000, 1e+06, 1e+09)
-chars <- c("H", "K", "M", "B")
-cleanData$PROPDMGEXP <- factor(toupper(cleanData$PROPDMGEXP))  #, levels <- multipliers, names <- chars)
-
-# Calculating the monetary damage.
-data$PROPDMG_CALC <- data$PROPDMG * multipliers[PROPDMGEXP]
-```
-
-```
-## Error: object of type 'closure' is not subsettable
-```
+We make the assumption that events which have PROP/CROPDMGEXP values corresponding to billions of dollars will be the most damaging, and as such take the corresponding subset of the the data.
+We then total the property and crop damage attributable to each type of weather, rank the types of weather by the total monetary damage caused, and take the top 10.
 
 ```r
-data$CROPDMG_CALC <- data$CROPDMG * multipliers[CROPDMGEXP]
-```
+# Subset the data on the assumption that 'B' refers to billions of dollars,
+# and that events with this exponent will be most expensive.
+subData <- subset(cleanData, PROPDMGEXP == "B" | CROPDMG == "B", select = c("EVTYPE", 
+    "PROPDMG", "CROPDMG"))
 
-```
-## Error: object of type 'closure' is not subsettable
-```
+Property <- subData[, sum(PROPDMG), by = EVTYPE]
+Crops <- subData[, sum(CROPDMG), by = EVTYPE]
 
-```r
+y <- data.table(Property$EVTYPE, Property$V1, Crops$V1)
+setnames(y, old = c("V1", "V2", "V3"), new = c("EVTYPE", "Property", "Crops"))
+y <- y[with(y, order(-Property, -Crops)), ]
 
-# Getting the 25 most damaging event types.
-resultsProp <- DT[, sum(PROPDMG_CALC + CROPDMG_CALC), by = EVTYPE]
-```
-
-```
-## Error: object 'DT' not found
-```
-
-```r
-resultsProp <- resultsProp[order(V1, na.last = TRUE, decreasing = TRUE), ]
-```
-
-```
-## Error: object 'resultsProp' not found
-```
-
-```r
-rankedProp <- head(resultsProp, 25)
-```
-
-```
-## Error: object 'resultsProp' not found
+rankedDmg <- head(y, 10)
+moltenDmg <- melt(rankedDmg, id.vars = "EVTYPE")
 ```
 
 
 Results
 --------------------------------------------------------
-
+We plot below the number of fatalities/injuries which are attributable to the 25 most harmful types of severe weather. The data are ordered based on the total number of fatalities and injuries attributed to a given type of weather, with ties broken by the number of fatalities.
 
 ```r
 life <- ggplot(moltenLife, aes(x = reorder(EVTYPE, value), y = value, group = EVTYPE, 
@@ -325,31 +206,25 @@ print(life)
 
 ![plot of chunk plotLife](figure/plotLife.png) 
 
+Fig 1: 10 most dangerous forms of severe weather.
 
+It is evident that Tornadoes are by far the most dangerous form of severe weather, followed by 'Thunderstorm Wind', and 'Excessive Heat'.
 
-```r
-prop <- ggplot(rankedProp, aes(x = reorder(EVTYPE, value), y = value)) + geom_bar(stat = "identity")
-```
-
-```
-## Error: object 'rankedProp' not found
-```
+We plot below the economic cost associated with the 25 most damaging types of severe weather. The data are ordered based on the total cost, with ties being broken by the estimated damage to property.
 
 ```r
-prop <- prop + coord_flip()
+prop <- ggplot(moltenDmg, aes(x = reorder(EVTYPE, value), y = value, group = EVTYPE, 
+    fill = variable))
+prop <- prop + geom_bar(stat = "identity") + coord_flip()
+prop <- prop + ggtitle("Severe Weather Incurring The Greatest Economic Cost") + 
+    ylab("Economic Cost - Billions of Dollars") + xlab("Type of Severe Weather")
+print(prop)
 ```
 
-```
-## Error: object 'prop' not found
-```
+![plot of chunk plotProp](figure/plotProp.png) 
 
-```r
-prop(prop)
-```
+Fig 2: 10 most economically costly forms of severe weather.
 
-```
-## Error: could not find function "prop"
-```
+We see that Hurricanes (Typhoons), have the greatest economic impact, followed by Flooding, and 'Storm Surge/Tide'.
 
-
-We conclude that the greatest threats to public safety are Tornados, and that the most economically damaging events are Hurricanes (Typhoons).
+We conclude that the greatest threats to public safety are Tornadoes, and that the most economically damaging events are Hurricanes (Typhoons).
